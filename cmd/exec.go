@@ -6,6 +6,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -125,9 +126,44 @@ var timeoutCmd = &cobra.Command{
 	},
 }
 
+var notfoundCmd = &cobra.Command{
+	Use: "notfound",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		eCmd := exec.Command("notfound")
+		if errors.Is(eCmd.Err, exec.ErrDot) {
+			fmt.Println("path lookup resolved to a local directory")
+		}
+		if err := eCmd.Run(); err != nil {
+			if errors.Is(err, exec.ErrNotFound) {
+				fmt.Println("executable failed to resolve")
+			}
+			return err
+		}
+		return nil
+	},
+}
+
+var errCmd = &cobra.Command{
+	Use: "error",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		eCmd := exec.Command(filepath.Join(os.Getenv("GOPATH"), "bin", "error"))
+		var out bytes.Buffer
+		var stderr bytes.Buffer
+		eCmd.Stdout = &out
+		eCmd.Stderr = &stderr
+		if err := eCmd.Run(); err != nil {
+			return fmt.Errorf(stderr.String())
+		}
+		fmt.Println(out.String())
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(execCmd)
 	execCmd.AddCommand(letterCountCmd)
 	execCmd.AddCommand(httpCmd)
 	execCmd.AddCommand(timeoutCmd)
+	execCmd.AddCommand(notfoundCmd)
+	execCmd.AddCommand(errCmd)
 }
