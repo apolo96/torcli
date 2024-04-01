@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,19 +81,34 @@ var httpCmd = &cobra.Command{
 	Use:   "http",
 	Short: "Http client to request datas a API",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		client := &http.Client{}
+		client := &http.Client{Timeout: time.Second}
 		payload := &bytes.Buffer{}
-		id := "1" // mock id
-		path := fmt.Sprintf("http://localhost:8000/request?%s", id)
+		//path := "http://localhost:8080/timeout"
+		path := "http://localhost:8080/request/1"
 		req, err := http.NewRequest(http.MethodGet, path, payload)
 		if err != nil {
 			return err
 		}
 		res, err := client.Do(req)
 		if err != nil {
-			return err
+			urlErr := err.(*url.Error)
+			if urlErr.Timeout() {
+				return fmt.Errorf("timeout %s", err)
+			}
+			if urlErr.Temporary() {
+				return fmt.Errorf("temporary %s", err)
+			}
+			return fmt.Errorf("operation %s url %s error %s", urlErr.Op, urlErr.URL, urlErr.Err)
 		}
 		defer res.Body.Close()
+		switch res.StatusCode {
+		case http.StatusBadRequest:
+			fmt.Printf("bad request: %v\n", res.Status)
+		case http.StatusInternalServerError:
+			fmt.Printf("internal service error: %v\n", res.Status)
+		default:
+			fmt.Printf("unexpected status code: %v\n", res.StatusCode)
+		}
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
 			return err
