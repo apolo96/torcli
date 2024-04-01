@@ -4,11 +4,15 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -71,7 +75,59 @@ var letterCountCmd = &cobra.Command{
 	},
 }
 
+var httpCmd = &cobra.Command{
+	Use:   "http",
+	Short: "Http client to request datas a API",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		client := &http.Client{}
+		payload := &bytes.Buffer{}
+		id := "1" // mock id
+		path := fmt.Sprintf("http://localhost:8000/request?%s", id)
+		req, err := http.NewRequest(http.MethodGet, path, payload)
+		if err != nil {
+			return err
+		}
+		res, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+		data, err := io.ReadAll(res.Body)
+		if err != nil {
+			return err
+		}
+		fmt.Println(http.DetectContentType(data))
+		fmt.Println(string(data))
+		return nil
+	},
+}
+
+var timeoutCmd = &cobra.Command{
+	Use: "timeout",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		tCmd := exec.Command(filepath.Join(os.Getenv("GOPATH"), "bin", "timeout"))
+		if err := tCmd.Start(); err != nil {
+			return err
+		}
+		errChan := make(chan error, 1)
+		go func() {
+			errChan <- tCmd.Wait()
+		}()
+		select {
+		case <-time.After(time.Second * 10):
+			return fmt.Errorf("timeout command")
+		case err := <-errChan:
+			if err != nil {
+				return fmt.Errorf(err.Error())
+			}
+		}
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(execCmd)
 	execCmd.AddCommand(letterCountCmd)
+	execCmd.AddCommand(httpCmd)
+	execCmd.AddCommand(timeoutCmd)
 }
