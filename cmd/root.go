@@ -18,8 +18,17 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
+	/* CLI Handlers */
 	setupInterrupHandler()
 	setupStopHandler()
+
+	/* Root CMD */
+	rootCmd.PersistentFlags().BoolP(
+		"verbose",
+		"v",
+		false,
+		"show logs and traces program",
+	)
 	err := rootCmd.Execute()
 	if err != nil {
 		os.Exit(1)

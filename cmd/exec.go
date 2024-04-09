@@ -5,6 +5,8 @@ package cmd
 
 import (
 	"bytes"
+	"calculator/cmd/logs"
+	"calculator/cmd/verbose"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -81,36 +83,55 @@ var httpCmd = &cobra.Command{
 	Use:   "http",
 	Short: "Http client to request datas a API",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		/* Enable verbose mode */
+		verbose.FlagV, _ = execCmd.Flags().GetBool("verbose")
+		/* Init http client */
 		client := &http.Client{Timeout: time.Second}
 		payload := &bytes.Buffer{}
-		//path := "http://localhost:8080/timeout"
+		/* path := "http://localhost:8080/timeout" */
 		path := "http://localhost:8080/request/1"
 		req, err := http.NewRequest(http.MethodGet, path, payload)
 		if err != nil {
 			return err
 		}
+		msg := "Doing request to " + req.URL.String()
+		logs.Logger.Info(msg)
+		verbose.Show(msg)
 		res, err := client.Do(req)
 		if err != nil {
 			urlErr := err.(*url.Error)
 			if urlErr.Timeout() {
-				return fmt.Errorf("timeout %s", err)
+				verbose.Show("request to api service is timeout")
+				logs.Logger.Error("timeout " + err.Error())
+				return err
 			}
 			if urlErr.Temporary() {
 				return fmt.Errorf("temporary %s", err)
 			}
-			return fmt.Errorf("operation %s url %s error %s", urlErr.Op, urlErr.URL, urlErr.Err)
+			err = fmt.Errorf("operation %s url %s error %s", urlErr.Op, urlErr.URL, urlErr.Err)
+			verbose.Show("unexpected error requesting api service")
+			logs.Logger.Error(err.Error())
+			return err
 		}
 		defer res.Body.Close()
 		switch res.StatusCode {
 		case http.StatusBadRequest:
-			fmt.Printf("bad request: %v\n", res.Status)
+			msg := "bad request with status code " + res.Status
+			verbose.Show(msg)
+			logs.Logger.Error(msg)
 		case http.StatusInternalServerError:
-			fmt.Printf("internal service error: %v\n", res.Status)
+			msg := "internal service error with status code " + res.Status
+			verbose.Show(msg)
+			logs.Logger.Error(msg)
 		default:
-			fmt.Printf("unexpected status code: %v\n", res.StatusCode)
+			msg := "unexpected status code " + res.Status
+			verbose.Show(msg)
+			logs.Logger.Error(msg)
 		}
 		data, err := io.ReadAll(res.Body)
 		if err != nil {
+			verbose.Show("error reading data from api service response")
+			logs.Logger.Error(err.Error())
 			return err
 		}
 		fmt.Println(http.DetectContentType(data))
@@ -182,4 +203,5 @@ func init() {
 	execCmd.AddCommand(timeoutCmd)
 	execCmd.AddCommand(notfoundCmd)
 	execCmd.AddCommand(errCmd)
+
 }
